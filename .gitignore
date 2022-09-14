@@ -1,0 +1,9 @@
+# CC / CXX Compiler
+.clang
+.cache
+build*
+
+# gtags
+GPATH
+GRTAGS
+GTAGS
