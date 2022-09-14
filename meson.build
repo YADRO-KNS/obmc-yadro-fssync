@@ -12,12 +12,18 @@ conf = configuration_data()
 conf.set_quoted('PROJECT_VERSION', meson.project_version())
 configure_file(output: 'config.h', configuration: conf)
 
+fmt_dep = dependency('fmt')
+sdeventplus_dep = dependency('sdeventplus')
+
 executable(
   'fssyncd',
   [
-    'src/main.cpp'
+    'src/main.cpp',
+    'src/watch.cpp',
   ],
   dependencies: [
+    fmt_dep,
+    sdeventplus_dep,
   ],
   install: true,
 )

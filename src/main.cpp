@@ -5,11 +5,60 @@
 
 #include "config.h"
 
-#include <cstdio>
+#include "watch.hpp"
+
+#include <fmt/printf.h>
+
+#include <sdeventplus/event.hpp>
+#include <sdeventplus/source/signal.hpp>
+
+#include <csignal>
+
+static void signalHandler(sdeventplus::source::Signal& source,
+                          const struct signalfd_siginfo*)
+{
+    fmt::print("\rSignal {} recieved, terminating...\n", source.get_signal());
+    source.get_event().exit(EXIT_SUCCESS);
+}
 
 int main([[maybe_unused]] int argc, [[maybe_unused]]char* argv[])
 {
-    printf("obmc-yadro-fssync ver %s\n", PROJECT_VERSION);
+    fmt::print("obmc-yadro-fssync ver {}\n", PROJECT_VERSION);
 
-    return 0;
+    auto event = sdeventplus::Event::get_default();
+
+    try
+    {
+        sigset_t ss;
+        if (sigemptyset(&ss) < 0 || sigaddset(&ss, SIGTERM) < 0 ||
+            sigaddset(&ss, SIGINT) < 0)
+        {
+            fmt::print(stderr, "ERROR: Failed to setup signal handlers, {}\n",
+                       strerror(errno));
+            return EXIT_FAILURE;
+        }
+
+        if (sigprocmask(SIG_BLOCK, &ss, nullptr) < 0)
+        {
+            fmt::print(stderr, "ERROR: Faile to block signals, {}\n",
+                       strerror(errno));
+            return EXIT_FAILURE;
+        }
+
+        sdeventplus::source::Signal sigterm(event, SIGTERM, signalHandler);
+        sdeventplus::source::Signal sigint(event, SIGINT, signalHandler);
+
+        fs::path srcDir("test");
+        auto watch = inotify::Watch::create(event, srcDir);
+
+        auto rc = event.loop();
+        fmt::print("Bye!\n");
+        return rc;
+    }
+    catch (const std::exception& e)
+    {
+        fmt::print(stderr, "EXCEPTION: {}\n", e.what());
+    }
+
+    return EXIT_FAILURE;
 }
