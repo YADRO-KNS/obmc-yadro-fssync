@@ -1,0 +1,12 @@
+/etc/dropbear
+/etc/group
+/etc/gshadow
+/etc/hostname
+/etc/ipmi_pass
+/etc/key_file
+/etc/machine-id
+/etc/passwd
+/etc/resolv.conf
+/etc/shadow
+/etc/ssl
+/etc/systemd/network
