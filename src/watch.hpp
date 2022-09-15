@@ -73,9 +73,15 @@ class Watch
      */
     void rescanRoot(sdeventplus::source::EventBase& source);
 
+    /**
+     * @brief Check whether if directories to watch exist.
+     */
+    void checkWds(sdeventplus::source::EventBase& source);
+
   private:
     sdeventplus::source::IO eventReader;
     sdeventplus::source::Defer rescan;
+    sdeventplus::source::Post post;
     std::map<int, fs::path> wds;
     fs::path root;
 };
