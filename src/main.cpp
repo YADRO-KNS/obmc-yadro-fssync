@@ -49,7 +49,14 @@ int main([[maybe_unused]] int argc, [[maybe_unused]]char* argv[])
         sdeventplus::source::Signal sigint(event, SIGINT, signalHandler);
 
         fs::path srcDir("test");
-        auto watch = inotify::Watch::create(event, srcDir);
+
+        auto syncHandler = [&srcDir](int mask, const fs::path& path) {
+            auto entry = fs::relative(path, srcDir);
+            fmt::print("SYNC: mask={:08X}, '{}'\n", mask, entry.c_str());
+        };
+
+        auto watch =
+            inotify::Watch::create(event, srcDir, std::move(syncHandler));
 
         auto rc = event.loop();
         fmt::print("Bye!\n");

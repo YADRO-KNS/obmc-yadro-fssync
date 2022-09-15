@@ -22,6 +22,8 @@ namespace inotify
 class Watch
 {
   public:
+    using Callback = std::function<void(int, const fs::path&)>;
+
     Watch() = delete;
     Watch(const Watch&) = delete;
     Watch& operator=(const Watch&) = delete;
@@ -33,17 +35,20 @@ class Watch
      */
     ~Watch();
 
-    static Watch create(sdeventplus::Event& event, const fs::path& root);
+    static Watch create(sdeventplus::Event& event, const fs::path& root,
+                        Callback callback);
 
   protected:
     /**
      * @brief ctor - hook inotify watch with sd-event
      *
-     * @param event - sd-event object
-     * @param fd    - inotify fd
-     * @param root  - root directory watched to
+     * @param event    - sd-event object
+     * @param fd       - inotify fd
+     * @param root     - root directory watched to
+     * @param callback - The callback function for processing files
      */
-    Watch(sdeventplus::Event& event, int fd, const fs::path& root);
+    Watch(sdeventplus::Event& event, int fd, const fs::path& root,
+          Callback callback);
 
     /**
      * @brief Get inotify FD
@@ -84,6 +89,7 @@ class Watch
     sdeventplus::source::Post post;
     std::map<int, fs::path> wds;
     fs::path root;
+    Callback syncCallback;
 };
 
 } // namespace inotify

@@ -14,13 +14,14 @@
 namespace inotify
 {
 
-Watch::Watch(sdeventplus::Event& event, int fd, const fs::path& root) :
+Watch::Watch(sdeventplus::Event& event, int fd, const fs::path& root,
+             Callback callback) :
     eventReader(event, fd, EPOLLIN,
                 std::bind(&Watch::handleEvent, this, std::placeholders::_1,
                           std::placeholders::_2, std::placeholders::_3)),
     rescan(event, std::bind(&Watch::rescanRoot, this, std::placeholders::_1)),
     post(event, std::bind(&Watch::checkWds, this, std::placeholders::_1)),
-    root(root)
+    root(root), syncCallback(callback)
 {}
 
 Watch::~Watch()
@@ -36,7 +37,8 @@ Watch::~Watch()
     }
 }
 
-Watch Watch::create(sdeventplus::Event& event, const fs::path& root)
+Watch Watch::create(sdeventplus::Event& event, const fs::path& root,
+                    Watch::Callback callback)
 {
     auto fd = inotify_init1(IN_NONBLOCK);
     if (-1 == fd)
@@ -45,7 +47,7 @@ Watch Watch::create(sdeventplus::Event& event, const fs::path& root)
             fmt::format("inotify_init1() failed, {}", strerror(errno)));
     }
 
-    return Watch(event, fd, root);
+    return Watch(event, fd, root, callback);
 }
 
 static void rmWatch(int fd, int wd, const fs::path& path)
@@ -76,6 +78,12 @@ void Watch::handleEvent(sdeventplus::source::IO&, int fd, uint32_t)
         if (it == wds.end())
         {
             continue;
+        }
+
+        if (syncCallback)
+        {
+            syncCallback(evt->mask,
+                         evt->len > 0 ? it->second / evt->name : it->second);
         }
 
         // Add watch for the new directories
