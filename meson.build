@@ -20,6 +20,7 @@ executable(
   [
     'src/main.cpp',
     'src/watch.cpp',
+    'src/whitelist.cpp',
   ],
   dependencies: [
     fmt_dep,

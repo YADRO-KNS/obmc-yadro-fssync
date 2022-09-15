@@ -6,6 +6,7 @@
 #include "config.h"
 
 #include "watch.hpp"
+#include "whitelist.hpp"
 
 #include <fmt/printf.h>
 
@@ -50,9 +51,16 @@ int main([[maybe_unused]] int argc, [[maybe_unused]]char* argv[])
 
         fs::path srcDir("test");
 
-        auto syncHandler = [&srcDir](int mask, const fs::path& path) {
+        fssync::WhiteList whitelist;
+        whitelist.load("whitelist.txt");
+
+        auto syncHandler = [&srcDir, &whitelist](int mask,
+                                                 const fs::path& path) {
             auto entry = fs::relative(path, srcDir);
-            fmt::print("SYNC: mask={:08X}, '{}'\n", mask, entry.c_str());
+            if (whitelist.check(entry))
+            {
+                fmt::print("SYNC: mask={:08X}, '{}'\n", mask, entry.c_str());
+            }
         };
 
         auto watch =
