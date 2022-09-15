@@ -19,6 +19,7 @@ Watch::Watch(sdeventplus::Event& event, int fd, const fs::path& root) :
                 std::bind(&Watch::handleEvent, this, std::placeholders::_1,
                           std::placeholders::_2, std::placeholders::_3)),
     rescan(event, std::bind(&Watch::rescanRoot, this, std::placeholders::_1)),
+    post(event, std::bind(&Watch::checkWds, this, std::placeholders::_1)),
     root(root)
 {}
 
@@ -144,6 +145,15 @@ void Watch::rescanRoot(sdeventplus::source::EventBase&)
         }
     }
     addWatch(root);
+}
+
+void Watch::checkWds(sdeventplus::source::EventBase& source)
+{
+    if (wds.empty())
+    {
+        fmt::print(stderr, "ERROR: No directories to watch exist.\n");
+        source.get_event().exit(ENOENT);
+    }
 }
 
 static int createWatch(int fd, const fs::path& path)
