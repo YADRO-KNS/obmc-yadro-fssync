@@ -34,7 +34,8 @@ class Sync
     Sync& operator=(Sync&&) = delete;
     ~Sync() = default;
 
-    Sync(sdeventplus::Event& event, const fs::path& src, const fs::path& dst);
+    Sync(sdeventplus::Event& event, const fs::path& src, const fs::path& dst,
+         const std::chrono::seconds& delay);
     void whitelist(const fs::path& filename);
     int processEntry(int mask, const fs::path& entryPath);
 
@@ -58,5 +59,6 @@ class Sync
     fs::path whiteListFile;
     std::unique_ptr<sdeventplus::source::Child> childPtr;
     Time timer;
+    std::chrono::seconds defaultDelay;
 };
 } // namespace fssync

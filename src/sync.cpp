@@ -17,18 +17,19 @@ inline fs::path addTrailingSlash(const fs::path& path)
     return path.filename().empty() ? path : (path / "");
 }
 
-Sync::Sync(sdeventplus::Event& event, const fs::path& src,
-           const fs::path& dst) :
+Sync::Sync(sdeventplus::Event& event, const fs::path& src, const fs::path& dst,
+           const std::chrono::seconds& delay) :
     event(event),
     source(addTrailingSlash(src)), destination(addTrailingSlash(dst)),
     timer(event, {}, std::chrono::microseconds{1},
           std::bind(&Sync::handleTimer, this, std::placeholders::_1,
-                    std::placeholders::_2))
+                    std::placeholders::_2)),
+    defaultDelay(delay)
 {
     fmt::print("SYNC: src='{}', dst='{}'\n", source.c_str(),
                destination.c_str());
 
-    startTimer(std::chrono::seconds{10});
+    startTimer(defaultDelay);
 }
 
 void Sync::whitelist(const fs::path& filename)
@@ -38,7 +39,7 @@ void Sync::whitelist(const fs::path& filename)
 
 int Sync::processEntry(int, const fs::path&)
 {
-    startTimer(std::chrono::seconds{10});
+    startTimer(defaultDelay);
     return 0;
 }
 
