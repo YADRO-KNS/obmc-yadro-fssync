@@ -5,6 +5,7 @@
 
 #include "config.h"
 
+#include "sync.hpp"
 #include "watch.hpp"
 #include "whitelist.hpp"
 
@@ -32,7 +33,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]]char* argv[])
     {
         sigset_t ss;
         if (sigemptyset(&ss) < 0 || sigaddset(&ss, SIGTERM) < 0 ||
-            sigaddset(&ss, SIGINT) < 0)
+            sigaddset(&ss, SIGINT) < 0 || sigaddset(&ss, SIGCHLD) < 0)
         {
             fmt::print(stderr, "ERROR: Failed to setup signal handlers, {}\n",
                        strerror(errno));
@@ -50,16 +51,22 @@ int main([[maybe_unused]] int argc, [[maybe_unused]]char* argv[])
         sdeventplus::source::Signal sigint(event, SIGINT, signalHandler);
 
         fs::path srcDir("test");
+        fs::path dstDir("test-dst");
+        fs::path whiteListFile("whitelist.txt");
 
         fssync::WhiteList whitelist;
-        whitelist.load("whitelist.txt");
+        whitelist.load(whiteListFile);
 
-        auto syncHandler = [&srcDir, &whitelist](int mask,
-                                                 const fs::path& path) {
+        fssync::Sync sync(event, srcDir, dstDir);
+        sync.whitelist(whiteListFile);
+
+        auto syncHandler = [&srcDir, &whitelist, &sync](int mask,
+                                                        const fs::path& path) {
             auto entry = fs::relative(path, srcDir);
             if (whitelist.check(entry))
             {
                 fmt::print("SYNC: mask={:08X}, '{}'\n", mask, entry.c_str());
+                sync.processEntry(mask, entry);
             }
         };
 

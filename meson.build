@@ -24,6 +24,7 @@ executable(
   'fssyncd',
   [
     'src/main.cpp',
+    'src/sync.cpp',
     'src/watch.cpp',
     'src/whitelist.cpp',
   ],
