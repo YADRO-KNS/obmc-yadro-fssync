@@ -10,10 +10,12 @@
 #include "whitelist.hpp"
 
 #include <fmt/printf.h>
+#include <getopt.h>
 
 #include <sdeventplus/event.hpp>
 #include <sdeventplus/source/signal.hpp>
 
+#include <chrono>
 #include <csignal>
 
 static void signalHandler(sdeventplus::source::Signal& source,
@@ -23,9 +25,97 @@ static void signalHandler(sdeventplus::source::Signal& source,
     source.get_event().exit(EXIT_SUCCESS);
 }
 
+static void printUsage(const char* app)
+{
+    fmt::print(
+        "\nUsage: {} [-h] [-d SECONDS] [-w FILE] <source-dir> <dest-dir>\n",
+        app);
+    fmt::print(R"(Required arguments:
+  source-dir            Path to the source directory.
+  dest-dir              Path to the destination directory.
+
+Optional arguments:
+  -h, --help            show this help message and exit.
+  -d, --delay SECONDS   define delay before sync process starting
+  -w, --witelist FILE   path to a file with a list of files to track.
+                        File should contain paths relative to source-dri.
+                        If not specified, all files from the source directory
+                        will be transferred to the destination.
+)");
+}
+
 int main([[maybe_unused]] int argc, [[maybe_unused]]char* argv[])
 {
     fmt::print("obmc-yadro-fssync ver {}\n", PROJECT_VERSION);
+
+    fs::path srcDir, dstDir, whiteListFile;
+    std::chrono::seconds delay = std::chrono::minutes{2};
+
+    const struct option opts[] = {
+        // clang-format off
+        { "help",       no_argument,        0, 'h' },
+        { "delay",      required_argument,  0, 'd' },
+        { "whitelist",  required_argument,  0, 'w' },
+        { 0,            0,                  0,  0  },
+        // clang-format on
+    };
+
+    int optVal;
+    while ((optVal = getopt_long(argc, argv, "hd:w:", opts, nullptr)) != -1)
+    {
+        switch (optVal)
+        {
+            case 'h':
+                printUsage(argv[0]);
+                return EXIT_SUCCESS;
+
+            case 'd':
+                try
+                {
+                    delay = std::chrono::seconds{std::stol(optarg, nullptr, 0)};
+                }
+                catch (const std::invalid_argument&)
+                {
+                    fmt::print(stderr, "Invalid delay value!\n");
+                    printUsage(argv[0]);
+                    return EXIT_FAILURE;
+                }
+                break;
+
+            case 'w':
+                whiteListFile = optarg;
+                break;
+
+            default:
+                fmt::print(stderr, "Invalid option: {}\n", argv[optind - 1]);
+                printUsage(argv[0]);
+                return EXIT_FAILURE;
+        }
+    }
+
+    if (optind == argc - 2)
+    {
+        srcDir = argv[optind++];
+        dstDir = argv[optind];
+    }
+    else
+    {
+        fmt::print(stderr, "Required arguments are not specified!\n");
+        printUsage(argv[0]);
+        return EXIT_FAILURE;
+    }
+
+    if (!fs::is_directory(srcDir))
+    {
+        fmt::print(stderr, "Invalid source directory specified!\n");
+        return EXIT_FAILURE;
+    }
+
+    if (!(fs::is_directory(dstDir) || !fs::exists(dstDir)))
+    {
+        fmt::print(stderr, "Invalid destination directory specified!\n");
+        return EXIT_FAILURE;
+    }
 
     auto event = sdeventplus::Event::get_default();
 
@@ -50,14 +140,10 @@ int main([[maybe_unused]] int argc, [[maybe_unused]]char* argv[])
         sdeventplus::source::Signal sigterm(event, SIGTERM, signalHandler);
         sdeventplus::source::Signal sigint(event, SIGINT, signalHandler);
 
-        fs::path srcDir("test");
-        fs::path dstDir("test-dst");
-        fs::path whiteListFile("whitelist.txt");
-
         fssync::WhiteList whitelist;
         whitelist.load(whiteListFile);
 
-        fssync::Sync sync(event, srcDir, dstDir);
+        fssync::Sync sync(event, srcDir, dstDir, delay);
         sync.whitelist(whiteListFile);
 
         auto syncHandler = [&srcDir, &whitelist, &sync](int mask,
