@@ -5,7 +5,12 @@ project('obmc-yadro-fssync', 'cpp',
     'cpp_std=c++17',
   ],
   license: 'Apache-2.0',
-  version: '0.1',
+  version: run_command(
+    '/usr/bin/git',
+    '--git-dir=@0@/.git'.format(meson.source_root()),
+    'describe', '--always', '--dirty', '--long',
+    check: true,
+  ).stdout().strip(),
 )
 
 conf = configuration_data()
