@@ -151,7 +151,6 @@ int main([[maybe_unused]] int argc, [[maybe_unused]]char* argv[])
             auto entry = fs::relative(path, srcDir);
             if (whitelist.check(entry))
             {
-                fmt::print("SYNC: mask={:08X}, '{}'\n", mask, entry.c_str());
                 sync.processEntry(mask, entry);
             }
         };
