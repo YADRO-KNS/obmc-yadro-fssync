@@ -7,10 +7,13 @@
 #include <fmt/printf.h>
 #include <unistd.h>
 
+#include <phosphor-logging/log.hpp>
 #include <sdeventplus/event.hpp>
 
 namespace fssync
 {
+
+using namespace phosphor::logging;
 
 inline fs::path addTrailingSlash(const fs::path& path)
 {
@@ -26,9 +29,6 @@ Sync::Sync(sdeventplus::Event& event, const fs::path& src, const fs::path& dst,
                     std::placeholders::_2)),
     defaultDelay(delay)
 {
-    fmt::print("SYNC: src='{}', dst='{}'\n", source.c_str(),
-               destination.c_str());
-
     startTimer(defaultDelay);
 }
 
@@ -48,14 +48,14 @@ void Sync::doSync()
     if (childPtr &&
         childPtr->get_enabled() != sdeventplus::source::Enabled::Off)
     {
-        fmt::print("SYNC: Process already started\n");
+        log<level::DEBUG>("SYNC: Process already started");
         startTimer(std::chrono::seconds{10});
     }
 
     pid_t pid = fork();
     if (pid == 0)
     {
-        fmt::print("CHILD: starting\n");
+        log<level::INFO>("Start sync process");
 
         std::vector<const char*> cmd = {
             "/usr/bin/rsync",        "--quiet",  "--archive",
@@ -74,7 +74,7 @@ void Sync::doSync()
 
         execv(cmd[0], const_cast<char* const*>(cmd.data()));
 
-        fmt::print(stderr, "execv failed, {}\n", strerror(errno));
+        log<level::ERR>("execv failed", entry("ERROR=%s", strerror(errno)));
     }
     else if (pid > 0)
     {
@@ -86,7 +86,7 @@ void Sync::doSync()
     }
     else
     {
-        fmt::print(stderr, "fork failed, {}\n", strerror(errno));
+        log<level::ERR>("fork failed", entry("ERROR=%s", strerror(errno)));
     }
 }
 
@@ -94,7 +94,7 @@ void Sync::handleChild(sdeventplus::source::Child& source, const siginfo_t* si)
 {
     if (!si)
     {
-        fmt::print(stderr, "ERROR: No signinfo awailable!\n");
+        log<level::ERR>("No signinfo available!");
         return;
     }
 
@@ -103,51 +103,48 @@ void Sync::handleChild(sdeventplus::source::Child& source, const siginfo_t* si)
         case CLD_EXITED:
             if (si->si_status == EXIT_SUCCESS)
             {
-                fmt::print("SYNC: successful completed.\n");
+                log<level::INFO>("Sync process successful completed.");
             }
             else
             {
-                fmt::print(stderr, "SYNC: sync process finished with code {}\n",
-                           si->si_status);
+                log<level::WARNING>("Sync process finished with non zero code",
+                                    entry("CODE=%d", si->si_status));
             }
             break;
 
         case CLD_STOPPED:
-            fmt::print("SYNC: process {} stopped, status={}\n", si->si_pid,
-                       si->si_status);
+            log<level::INFO>("Sync process stopped",
+                             entry("STATUS=%d", si->si_status));
             source.set_enabled(sdeventplus::source::Enabled::OneShot);
             break;
 
         case CLD_CONTINUED:
-            fmt::print("SYNC: process {} continued, status{}\n", si->si_pid,
-                       si->si_status);
+            log<level::INFO>("Sync process continued",
+                             entry("STATUS=%d", si->si_status));
             source.set_enabled(sdeventplus::source::Enabled::OneShot);
             break;
 
         case CLD_KILLED:
-            fmt::print(stderr, "SYNC: sync process killed by signal {}\n",
-                       si->si_status);
+            log<level::WARNING>("Sync process killed by signal",
+                                entry("SIGNAL=%d", si->si_status));
             break;
 
         case CLD_DUMPED:
-            fmt::print(stderr,
-                       "SYNC: sync process killed by signal {}, "
-                       "and dumped core\n",
-                       si->si_status);
+            log<level::WARNING>("Sync process killed by signal and dumped core",
+                                entry("SIGNAL=%d", si->si_status));
             break;
 
         default:
-            fmt::print(stderr,
-                       "SYNC: unexpected process termination."
-                       "signo={}, code={}, status={}\n",
-                       si->si_signo, si->si_code, si->si_status);
+            log<level::ERR>("Unexpected sync process termination",
+                            entry("SIGNO=%d", si->si_signo),
+                            entry("CODE=%d", si->si_code),
+                            entry("STATUS=%d", si->si_status));
             break;
     }
 }
 
 void Sync::handleTimer(Time&, Time::TimePoint)
 {
-    fmt::print("SYNC: Timer alarmed\n");
     doSync();
 }
 

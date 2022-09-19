@@ -8,11 +8,15 @@
 #include <sys/inotify.h>
 #include <unistd.h>
 
+#include <phosphor-logging/log.hpp>
+
 #include <climits>
 #include <stdexcept>
 
 namespace inotify
 {
+
+using namespace phosphor::logging;
 
 Watch::Watch(sdeventplus::Event& event, int fd, const fs::path& root,
              Callback callback) :
@@ -53,8 +57,8 @@ Watch Watch::create(sdeventplus::Event& event, const fs::path& root,
 static void rmWatch(int fd, int wd, const fs::path& path)
 {
     inotify_rm_watch(fd, wd);
-    fmt::print("* Remove fd={}, wd={}, '{}': {}\n", fd, wd, path.c_str(),
-               strerror(errno));
+    log<level::DEBUG>(
+        fmt::format("Remove wd={}, '{}'", wd, path.c_str()).c_str());
 }
 
 void Watch::handleEvent(sdeventplus::source::IO&, int fd, uint32_t)
@@ -69,8 +73,10 @@ void Watch::handleEvent(sdeventplus::source::IO&, int fd, uint32_t)
         auto evt =
             reinterpret_cast<struct inotify_event*>(buffer.data() + offset);
 
-        fmt::print("INOTIFY: {:08X} ({:08X}), wd={}, name: {}\n", evt->mask,
-                   evt->cookie, evt->wd, evt->len > 0 ? evt->name : "(null)");
+        log<level::DEBUG>(fmt::format("INOTIFY: mask={:08X}, wd={}, name={}",
+                                      evt->mask, evt->wd,
+                                      evt->len > 0 ? evt->name : "(null)")
+                              .c_str());
 
         offset += sizeof(*evt) + evt->len;
 
@@ -118,27 +124,13 @@ void Watch::handleEvent(sdeventplus::source::IO&, int fd, uint32_t)
         // so we should re-scan all the tree.
         if (evt->mask & IN_MOVE_SELF)
         {
-            fmt::print("* Rescan root pending\n");
             rescan.set_enabled(sdeventplus::source::Enabled::OneShot);
-        }
-
-        // TODO: Remove this DEBUG trix in production version.
-        static const std::string showWds = ".show_wds";
-        if ((evt->mask & IN_CLOSE_WRITE) && (it->second == root) &&
-            (showWds == evt->name))
-        {
-            fmt::print("* Show WDS: has {} items:\n", wds.size());
-            for (const auto& [wd, path] : wds)
-            {
-                fmt::print("   wd={}, '{}'\n", wd, path.c_str());
-            }
         }
     }
 }
 
 void Watch::rescanRoot(sdeventplus::source::EventBase&)
 {
-    fmt::print("DEFER: Rescan root\n");
     auto fd = inotifyFd();
     for (auto it = wds.begin(); it != wds.end();)
     {
@@ -159,7 +151,7 @@ void Watch::checkWds(sdeventplus::source::EventBase& source)
 {
     if (wds.empty())
     {
-        fmt::print(stderr, "ERROR: No directories to watch exist.\n");
+        log<level::ERR>("No directories to watch exist.");
         source.get_event().exit(ENOENT);
     }
 }
@@ -174,7 +166,7 @@ static int createWatch(int fd, const fs::path& path)
         throw std::runtime_error(fmt::format("inotify_add_watch({}) failed, {}",
                                              path.c_str(), strerror(errno)));
     }
-    fmt::print("* Add wd={}, '{}'\n", wd, path.c_str());
+    log<level::DEBUG>(fmt::format("Add wd={}, '{}'", wd, path.c_str()).c_str());
     return wd;
 }
 

@@ -19,6 +19,7 @@ configure_file(output: 'config.h', configuration: conf)
 
 fmt_dep = dependency('fmt')
 sdeventplus_dep = dependency('sdeventplus')
+phosphor_logging_dep = dependency('phosphor-logging')
 
 executable(
   'fssyncd',
@@ -31,6 +32,7 @@ executable(
   dependencies: [
     fmt_dep,
     sdeventplus_dep,
+    phosphor_logging_dep,
   ],
   install: true,
 )
