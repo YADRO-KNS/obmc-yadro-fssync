@@ -148,8 +148,12 @@ int main([[maybe_unused]] int argc, [[maybe_unused]]char* argv[])
 
         auto syncHandler = [&srcDir, &whitelist, &sync](int mask,
                                                         const fs::path& path) {
-            auto entry = fs::relative(path, srcDir);
-            if (whitelist.check(entry))
+            // Occasionally `journald` removes symlinks before they are
+            // handled. The exceptions thrown by `fs::relative` in this case
+            // should be ignored.
+            std::error_code ec;
+            auto entry = fs::relative(path, srcDir, ec);
+            if (!ec && whitelist.check(entry))
             {
                 sync.processEntry(mask, entry);
             }
